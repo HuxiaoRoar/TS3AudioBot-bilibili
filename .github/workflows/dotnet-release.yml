@@ -16,7 +16,8 @@ jobs:
   build-and-release:
     # 指定任务运行的操作系统环境
     runs-on: ubuntu-latest
-
+    permissions:      # <-- 添加这一块
+      contents: write   # <-- 授予创建Release所需的写入权限
     # 任务的步骤
     steps:
     # 第 1 步：检出（下载）你的仓库代码
