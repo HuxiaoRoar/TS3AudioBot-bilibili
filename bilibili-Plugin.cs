@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using TS3AudioBot;
 using TS3AudioBot.Audio;
 using TS3AudioBot.CommandSystem;
+using TS3AudioBot.Config;
 using TS3AudioBot.Plugins;
 
 public enum PlayMode
@@ -31,7 +32,8 @@ public class BilibiliPlugin : IBotPlugin
 	private static readonly HttpClient http = new HttpClient();
 	private static string cookieFile = "bili_cookie.txt";
 
-
+    // ---> 新增一个字段来存储机器人的默认名称 <---
+    private string defaultBotName;
 
     private static BilibiliVideoInfo lastSearchedVideo;
     private static List<BilibiliVideoInfo> lastHistoryResult;
@@ -48,10 +50,13 @@ public class BilibiliPlugin : IBotPlugin
 
 
 
-    public BilibiliPlugin(PlayManager playManager, Ts3Client ts3Client)
+    public BilibiliPlugin(PlayManager playManager, Ts3Client ts3Client, TS3AudioBot.Config.ConfBot confBot)
 	{
 		_playManager = playManager;
         _ts3Client =  ts3Client;
+
+        defaultBotName = confBot.Connect.Name;
+
         http.DefaultRequestHeaders.Remove("Referer");
 		http.DefaultRequestHeaders.Add("Referer", "https://www.bilibili.com");
 		http.DefaultRequestHeaders.Remove("User-Agent");
@@ -286,8 +291,8 @@ public class BilibiliPlugin : IBotPlugin
                 BilibiliPlaylist.Clear();
                 await _ts3Client.SendChannelMessage("Bilibili 播放列表已结束。");
                 // 恢复Bot的默认名称和头像
-                // await _ts3Client.ChangeName("TS3AudioBot");
-                // await _ts3Client.DeleteAvatar();
+                await _ts3Client.ChangeName(defaultBotName);
+                await _ts3Client.DeleteAvatar();
                 return; // 结束播放流程
             }
         }
@@ -1288,17 +1293,28 @@ public class BilibiliPlugin : IBotPlugin
 
         var videoToPlay = lastHistoryResult[index - 1];
         var partToPlay = videoToPlay.Parts.First();
-        await EnqueueAudio(invoker, videoToPlay, partToPlay, false);
 
-        if (!isPlayingBilibili)
+        // 创建要插入的播放项
+        var playlistItem = new PlaylistItem
         {
-            currentTrackIndex = BilibiliPlaylist.Count - 2;
-            await PlayNextTrack(invoker);
-        }
-        else
-        {
-            await _ts3Client.SendChannelMessage($"已将《{videoToPlay.Title}》添加到播放队列。");
-        }
+            Bvid = videoToPlay.Bvid,
+            Cid = partToPlay.Cid,
+            Title = videoToPlay.Title,
+            Uploader = videoToPlay.Uploader,
+            CoverUrl = videoToPlay.CoverUrl,
+            PartIndex = partToPlay.Index,
+            PartTitle = partToPlay.Title,
+            RequesterUid = invoker?.ClientUid.ToString()
+        };
+
+        // 计算插入位置（当前播放歌曲的下一首）
+        int insertIndex = (currentTrackIndex < 0) ? BilibiliPlaylist.Count : currentTrackIndex + 1;
+        BilibiliPlaylist.Insert(insertIndex, playlistItem);
+
+        // 将播放索引指向新插入歌曲的前一首，然后调用 PlayNextTrack 立即播放
+        currentTrackIndex = insertIndex - 1;
+        await PlayNextTrack(invoker);
+
         return null;
     }
 
@@ -1316,14 +1332,14 @@ public class BilibiliPlugin : IBotPlugin
 
         // 直接调用新的 EnqueueAudio，它只会添加到列表
         return await EnqueueAudio(invoker, videoToAdd, partToAdd);
-    }  
+    }
 
     [Command("b v")]
     public async Task<string> BilibiliBvCommand(InvokerData invoker, string input)
     {
         if (string.IsNullOrWhiteSpace(input)) return "请提供 BV 号。";
 
-        // 播放全部分P
+        // --- 播放全部分P的情况 (-a) ---
         if (input.EndsWith("-a", StringComparison.OrdinalIgnoreCase))
         {
             string bvid = input.Substring(0, input.Length - 2);
@@ -1334,32 +1350,61 @@ public class BilibiliPlugin : IBotPlugin
                 var videoList = ParsePagesToList(viewData);
                 if (videoList.Count <= 1) return "该视频没有多个分P。";
 
-                await BatchAddAsync(invoker, videoList, $"已将《{viewData["title"]}》的 {videoList.Count} 个分P加入队列。");
-                if (!isPlayingBilibili)
+                // 将解析出的视频列表转换为 PlaylistItem 列表
+                var itemsToInsert = videoList.Select(video =>
                 {
-                    currentTrackIndex = BilibiliPlaylist.Count - videoList.Count - 1;
-                    await PlayNextTrack(invoker);
-                }
+                    var part = video.Parts.First();
+                    return new PlaylistItem
+                    {
+                        Bvid = video.Bvid,
+                        Cid = part.Cid,
+                        Title = video.Title,
+                        Uploader = video.Uploader,
+                        CoverUrl = video.CoverUrl,
+                        PartIndex = part.Index,
+                        PartTitle = part.Title,
+                        RequesterUid = invoker?.ClientUid.ToString()
+                    };
+                }).ToList();
+
+                // 计算插入位置（当前播放歌曲的下一首）
+                int insertIndex = (currentTrackIndex < 0) ? BilibiliPlaylist.Count : currentTrackIndex + 1;
+                BilibiliPlaylist.InsertRange(insertIndex, itemsToInsert);
+
+                await _ts3Client.SendChannelMessage($"已将《{viewData["title"]}》的 {videoList.Count} 个分P插入队列并立即播放。");
+
+                // 将播放索引指向新插入歌曲的前一首，然后调用 PlayNextTrack
+                currentTrackIndex = insertIndex - 1;
+                await PlayNextTrack(invoker);
                 return null;
             }
             catch (Exception ex) { return $"播放全部分P失败: {ex.Message}"; }
         }
-        else // 播放单个或指定P
+        // --- 播放单个或指定P的情况 ---
+        else
         {
-    return await HandleVideoRequest(invoker, input, async (inv, videoInfo, partInfo) =>
+            return await HandleVideoRequest(invoker, input, async (inv, videoInfo, partInfo) =>
             {
-                await EnqueueAudio(inv, videoInfo, partInfo, false);  // 添加到列表，不播报
-                if (!isPlayingBilibili)
+                var playlistItem = new PlaylistItem
                 {
-                    // 如果没在播，就从列表的倒数第二首开始（因为PlayNextTrack会+1）
-                    currentTrackIndex = BilibiliPlaylist.Count - 2;
-                    await PlayNextTrack(invoker);
-                }
-                else
-                {
-                    // 如果正在播，就只提示
-                    await _ts3Client.SendChannelMessage($"已将《{videoInfo.Title}》加入队列。");
-                }
+                    Bvid = videoInfo.Bvid,
+                    Cid = partInfo.Cid,
+                    Title = videoInfo.Title,
+                    Uploader = videoInfo.Uploader,
+                    CoverUrl = videoInfo.CoverUrl,
+                    PartIndex = partInfo.Index,
+                    PartTitle = partInfo.Title,
+                    RequesterUid = invoker?.ClientUid.ToString()
+                };
+
+                // 计算插入位置
+                int insertIndex = (currentTrackIndex < 0) ? BilibiliPlaylist.Count : currentTrackIndex + 1;
+                BilibiliPlaylist.Insert(insertIndex, playlistItem);
+
+                // 设置索引并立即播放
+                currentTrackIndex = insertIndex - 1;
+                await PlayNextTrack(invoker);
+
                 return null;
             });
         }
@@ -1372,16 +1417,26 @@ public class BilibiliPlugin : IBotPlugin
         var partToPlay = lastSearchedVideo.Parts.FirstOrDefault(p => p.Index == partIndex);
         if (partToPlay == null) return $"请输入有效编号（1 - {lastSearchedVideo.Parts.Count}）。";
 
-        await EnqueueAudio(invoker, lastSearchedVideo, partToPlay, false);
-        if (!isPlayingBilibili)
+        var playlistItem = new PlaylistItem
         {
-            currentTrackIndex = BilibiliPlaylist.Count - 2;
-            await PlayNextTrack(invoker);
-        }
-        else
-        {
-            await _ts3Client.SendChannelMessage($"已将《{lastSearchedVideo.Title}》({partToPlay.Index}P)加入队列。");
-        }
+            Bvid = lastSearchedVideo.Bvid,
+            Cid = partToPlay.Cid,
+            Title = lastSearchedVideo.Title,
+            Uploader = lastSearchedVideo.Uploader,
+            CoverUrl = lastSearchedVideo.CoverUrl,
+            PartIndex = partToPlay.Index,
+            PartTitle = partToPlay.Title,
+            RequesterUid = invoker?.ClientUid.ToString()
+        };
+
+        // 计算插入位置
+        int insertIndex = (currentTrackIndex < 0) ? BilibiliPlaylist.Count : currentTrackIndex + 1;
+        BilibiliPlaylist.Insert(insertIndex, playlistItem);
+
+        // 设置索引并立即播放
+        currentTrackIndex = insertIndex - 1;
+        await PlayNextTrack(invoker);
+
         return null;
     }
 
@@ -1399,8 +1454,40 @@ public class BilibiliPlugin : IBotPlugin
             var collectionTitle = viewData["ugc_season"]?["title"]?.ToString() ?? "未知合集";
             if (videoList.Count == 0) return "无法从合集中解析出任何视频。";
 
-            // 调用旋转添加，并设置 startPlaying 为 true
-            return await BatchAddRotatedAsync(invoker, videoList, bvid, collectionTitle, true);
+            // --- 新的核心逻辑 ---
+
+            // 旋转列表，确保目标bvid是第一个
+            int startIndex = videoList.FindIndex(v => v.Bvid == bvid);
+            if (startIndex == -1) startIndex = 0;
+            var rotatedList = videoList.Skip(startIndex).Concat(videoList.Take(startIndex)).ToList();
+
+            var itemsToInsert = rotatedList.Select(video =>
+            {
+                var part = video.Parts.First();
+                return new PlaylistItem
+                {
+                    Bvid = video.Bvid,
+                    Cid = part.Cid,
+                    Title = video.Title,
+                    Uploader = video.Uploader,
+                    CoverUrl = video.CoverUrl,
+                    PartIndex = part.Index,
+                    PartTitle = part.Title,
+                    RequesterUid = invoker?.ClientUid.ToString()
+                };
+            }).ToList();
+
+            // 计算插入位置
+            int insertIndex = (currentTrackIndex < 0) ? BilibiliPlaylist.Count : currentTrackIndex + 1;
+            BilibiliPlaylist.InsertRange(insertIndex, itemsToInsert);
+
+            await _ts3Client.SendChannelMessage($"已将合集《{collectionTitle}》中的 {itemsToInsert.Count} 首歌曲插入队列并立即播放。");
+
+            // 设置索引并立即播放
+            currentTrackIndex = insertIndex - 1;
+            await PlayNextTrack(invoker);
+
+            return null;
         }
         catch (Exception ex) { return $"播放合集失败: {ex.Message}"; }
     }
@@ -1579,19 +1666,49 @@ public class BilibiliPlugin : IBotPlugin
     }
 
     [Command("b go")]
-    public async Task CommandGoTo(InvokerData invoker, int index)
+    public async Task CommandGoTo(InvokerData invoker, int? index = null)
     {
-        if (index < 1 || index > BilibiliPlaylist.Count)
+        // --- 情况1: 用户输入了 "!b go [编号]" ---
+        if (index.HasValue)
         {
-            await _ts3Client.SendChannelMessage($"bilist跳转失败！请输入 1 到 {BilibiliPlaylist.Count} 之间的有效索引。");
-            return;
+            int targetIndex = index.Value;
+            if (targetIndex < 1 || targetIndex > BilibiliPlaylist.Count)
+            {
+                await _ts3Client.SendChannelMessage($"bilist跳转失败！请输入 1 到 {BilibiliPlaylist.Count} 之间的有效索引。");
+                return;
+            }
+
+            await _ts3Client.SendChannelMessage($"已跳转到bilist第 {targetIndex} 首歌...");
+
+            // 核心逻辑：将索引设置为目标歌曲的前一首，然后调用 PlayNextTrack
+            currentTrackIndex = targetIndex - 2;
+            await PlayNextTrack(invoker);
         }
+        // --- 情况2: 用户只输入了 "!b go" ---
+        else
+        {
+            // a) 如果有歌曲正在播放 (currentTrackIndex >= 0)，则重播当前歌曲
+            if (currentTrackIndex >= 0 && currentTrackIndex < BilibiliPlaylist.Count)
+            {
+                var currentTrack = BilibiliPlaylist[currentTrackIndex];
+                await _ts3Client.SendChannelMessage($"正在播放bilist第{currentTrackIndex}首歌"); ;
 
-        await _ts3Client.SendChannelMessage($"已跳转到bilist第 {index} 首歌...");
-
-        // 核心逻辑：将索引设置为目标歌曲的前一首，然后调用 PlayNextTrack
-        currentTrackIndex = index - 2;
-        await PlayNextTrack(invoker);
+                currentTrackIndex--;
+                await PlayNextTrack(invoker);
+            }
+            // b) 如果当前没有歌曲播放 (currentTrackIndex == -1)，但播放列表不为空
+            else if (BilibiliPlaylist.Count > 0)
+            {
+                await _ts3Client.SendChannelMessage("开始播放bilist。");
+                // PlayNextTrack 会自动将索引从 -1 变为 0 并播放
+                await PlayNextTrack(invoker);
+            }
+            // c) 如果播放列表是空的
+            else
+            {
+                await _ts3Client.SendChannelMessage("bilist是空的，没有可以播放的歌曲。");
+            }
+        }
     }
 
     [Command("b remove")]
@@ -1677,8 +1794,8 @@ public class BilibiliPlugin : IBotPlugin
         isPlayingBilibili = false;
 
         // 4. 将机器人状态恢复默认
-        // await _ts3Client.ChangeName("TS3AudioBot"); // 或者你配置的默认名称
-        // await _ts3Client.DeleteAvatar();
+        await _ts3Client.ChangeName(defaultBotName); 
+        await _ts3Client.DeleteAvatar();
 
         await _ts3Client.SendChannelMessage("Bilibili 播放列表已清空。");
     }
