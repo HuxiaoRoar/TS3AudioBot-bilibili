@@ -55,8 +55,10 @@ jobs:
     # 第 8 步：将文档文件复制到打包目录 (如果文件存在)
     - name: Copy documentation to package directory
       run: |
+        cp -r assets release_package/ || true
         cp README.md release_package/ || true
         cp LICENSE release_package/ || true
+    
         
     # 第 9 步：从 Git 标签中提取版本号
     - name: Get version from tag
