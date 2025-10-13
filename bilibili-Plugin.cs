@@ -295,7 +295,11 @@ public class BilibiliPlugin : IBotPlugin
                 await _ts3Client.SendChannelMessage("Bilibili 播放列表已结束。");
                 // 恢复Bot的默认名称和头像
                 await _ts3Client.ChangeName(defaultBotName);
-                await _ts3Client.DeleteAvatar();
+                if (!System.IO.File.Exists("/.dockerenv"))
+                {
+                    // 如果不是Docker环境，则删除头像
+                    await _ts3Client.DeleteAvatar();
+                }
                 return; // 结束播放流程
             }
         }
@@ -1842,8 +1846,13 @@ public class BilibiliPlugin : IBotPlugin
         isPlayingBilibili = false;
 
         // 4. 将机器人状态恢复默认
-        await _ts3Client.ChangeName(defaultBotName); 
-        await _ts3Client.DeleteAvatar();
+        await _ts3Client.ChangeName(defaultBotName);
+
+        if (!System.IO.File.Exists("/.dockerenv"))
+        {
+            // 如果不是Docker环境，则删除头像
+            await _ts3Client.DeleteAvatar();
+        }
 
         await _ts3Client.SendChannelMessage("Bilibili 播放列表已清空。");
     }
