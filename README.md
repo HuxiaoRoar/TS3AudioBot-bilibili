@@ -2,7 +2,7 @@
 
 > 基于xxmod的 TS3AudioBot-BiliBiliPlugin 开发，重构并添加了新功能，例如批量添加视频合集、视频分P、队列管理等实用功能。
 
-[![Auto Release](https://github.com/xxmod/TS3AudioBot-BiliBiliPlugin/actions/workflows/main.yml/badge.svg)](https://github.com/xxmod/TS3AudioBot-BiliBiliPlugin/actions/workflows/main.yml)
+[![Auto Release](https://github.com/HuxiaoRoar/TS3AudioBot-bilibili/actions/workflows/dotnet-release.yml/badge.svg)](https://github.com/HuxiaoRoar/TS3AudioBot-bilibili/actions/workflows/dotnet-release.yml)
 [![Based on xxmod](https://img.shields.io/badge/Based%20on-xxmod-green)](https://github.com/xxmod/TS3AudioBot-BiliBiliPlugin)
 [![License](https://img.shields.io/badge/license-MPL2.0-blue.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-3.1-blue.svg)](https://dotnet.microsoft.com/download/dotnet/3.1)
