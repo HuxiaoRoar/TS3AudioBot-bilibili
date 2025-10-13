@@ -1,8 +1,7 @@
 # 🎵 TS3AudioBot-bilibili 插件
 
 > 基于xxmod的 TS3AudioBot-BiliBiliPlugin 开发，重构并添加了新功能，例如批量添加视频合集、视频分P、队列管理等实用功能。
-
-
+[![Auto Release](https://github.com/xxmod/TS3AudioBot-BiliBiliPlugin/actions/workflows/main.yml/badge.svg)](https://github.com/xxmod/TS3AudioBot-BiliBiliPlugin/actions/workflows/main.yml)
 [![Based on xxmod](https://img.shields.io/badge/Based%20on-xxmod-green)](https://github.com/xxmod/TS3AudioBot-BiliBiliPlugin)
 [![License](https://img.shields.io/badge/license-MPL2.0-blue.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-3.1-blue.svg)](https://dotnet.microsoft.com/download/dotnet/3.1)
@@ -45,37 +44,19 @@
 
 4. **复制和安装**
 
-   - 配置proxy代理，启动容器。
+   - 部署Bilibili-Referer-Proxy-R容器。
 
    - 将 `BilibiliPlugin.dll` 复制到 `TS3AudioBot/Plugins/` 目录下。
 
-5. **启动ts3audiobot容器**
+5. **部署ts3audiobot容器**
 
    - 启动 TS3AudioBot 容器，初始化配置。
 
 6. **权限配置**
+
    打开根目录下的`rights.toml` 修改权限
+   - 本插件可用全部命令如下
 
-   - 管理员权限配置部分：
-    
-      在`useruid`一项，填写自己的UID。UID在频道内查看。
-
-      ```
-      # Admin rule
-      [[rule]]
-         # Set your admin Group Ids here, ex: [ 13, 42 ]
-         groupid = []
-         # And/Or your admin Client Uids here
-         useruid = ["此处填入你自己的UID"]
-         # By default treat requests from localhost as admin
-         ip = [ "127.0.0.1", "::1" ]
-         "+" = "*"
-      ```
-
-   - 播放权限配置部分：
-    
-      本插件可用命令如下
-         
       ```toml
          "cmd.b",
          "cmd.b.qr",
@@ -100,9 +81,27 @@
          "cmd.b.clear"
       ```
 
-     `useruid` 填写你想赋予权限的用户UID，并将所有的指令复制进去。
+   - 管理员权限配置部分：
 
+      在`useruid`一项，填写管理员的UID。UID在频道-客户端列表-自己昵称旁下拉查看。
+
+      ```toml
+      # Admin rule
+      [[rule]]
+         # Set your admin Group Ids here, ex: [ 13, 42 ]
+         groupid = []
+         # And/Or your admin Client Uids here
+         useruid = ["此处填入你自己的UID"]
+         # By default treat requests from localhost as admin
+         ip = [ "127.0.0.1", "::1" ]
+         "+" = "*"
       ```
+
+   - 普通用户权限配置部分：
+
+     `useruid` 填写想赋予权限的用户UID，并将允许使用的指令复制进去。
+
+      ```toml
       # Playing rights
       [[rule]]
       # Set Group Ids you want to allow here, ex: [ 13, 42 ]
@@ -127,9 +126,10 @@
       ]
 
       ```
+
    - 如果是私人频道，可以直接删除`groupid`和`useruid` ，权限填写通配符，给所有人所有权限
 
-      ```
+      ```toml
       # Admin rule
       [[rule]]
          # Set your admin Group Ids here, ex: [ 13, 42 ]    
@@ -138,16 +138,16 @@
          ip = [ "127.0.0.1", "::1" ]
          "+" = "*"
       ```
-7. **机器人赋权**
+
+8. **机器人赋权**
    - 在频道内，给机器人赋予管理员权限。
-8. **加载插件**
+9. **加载插件**
    - 通过命令加载插件
- 
+
       ```
       !plugin lists          # 查看插件列表
       !plugin load [插件编号]  # 加载 Bilibili 插件
       ```
-
 
 ### 方法二：win安装
 
@@ -241,6 +241,7 @@
 #### 方法一、单一分P视频（推荐）
 
 用`-`号链接分P编号
+
 ```
 !b bv BV1UT42167xb-1    # 直接播放1p
 !b add BV1UT42167xb-1   # 添加1p到播放列表
@@ -249,6 +250,7 @@
 #### 方法二、全部分P视频（推荐）
 
 bv号后面加上`-a`
+
 ```
 !b v BV1UT42167xb-a     # 播放1P并添加全部分P到播放列表
 !b add BV1UT42167xb-a   # 添加全部分P到播放列表
@@ -307,6 +309,7 @@ bv号后面加上`-a`
 - 显示当前播放队列中的视频信息
 
 #### 清空队列
+
 ```
 !b clear
 ```
@@ -323,7 +326,6 @@ bv号后面加上`-a`
 !b move 3 1   # 将队列中的第3首移动到第1首
 !b mode 3     # 切换播放模式，1=顺序播放，2=列表循环，3=单曲循环
 ```
-
 
 ## 📋 完整命令列表
 
@@ -456,8 +458,8 @@ bv号后面加上`-a`
 - [x] 支持切换音乐后自动更换头像和名字。重构中。。。
 - [x] 打印播放列表
 - [x] 播放模式选择
-- [ ] 自动改回头像和昵称
-- [ ] 兼容其他插件
+- [x] 自动改回头像和昵称
+- [x] 兼容其他插件
 
 ## 🙏 致谢
 
@@ -478,8 +480,3 @@ bv号后面加上`-a`
 ## 🤝 贡献
 
 有任何问题，欢迎提交 Issues与我讨论。
-
-
-
-
-
