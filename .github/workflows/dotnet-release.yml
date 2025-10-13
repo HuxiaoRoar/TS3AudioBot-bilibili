@@ -1,5 +1,5 @@
 # 工作流的名称
-name: .NET Build and Release
+name: Auto Release
 
 # 工作流的触发条件
 on:
