@@ -831,6 +831,39 @@ public class BilibiliPlugin : IBotPlugin
         return null;
     }
 
+    // --- 新增的辅助方法，用于获取并旋转合集列表 ---
+    private async Task<(List<BilibiliVideoInfo> RotatedList, string CollectionTitle)> GetRotatedCollectionAsync(string bvid)
+    {
+        // 1. 标准化BV号 (复用问题一的解决方案)
+        var match = System.Text.RegularExpressions.Regex.Match(bvid, @"(?:BV)?(1[a-zA-Z0-9]{9})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!match.Success)
+        {
+            throw new ArgumentException("输入的 BV 号格式不正确。");
+        }
+        string targetBvid = "BV" + match.Groups[1].Value;
+       
+        // 2. 获取合集信息
+        string viewJson = await http.GetStringAsync($"https://api.bilibili.com/x/web-interface/view?bvid={targetBvid}");
+        JObject viewData = JObject.Parse(viewJson)["data"] as JObject;
+
+        if (viewData?["ugc_season"] == null)
+            throw new InvalidOperationException("该视频不属于任何合集。");
+
+        var fullList = ParseSeasonToList(viewData);
+        if (fullList.Count == 0)
+            return (fullList, null); // 返回空列表
+
+        var collectionTitle = viewData["ugc_season"]?["title"]?.ToString() ?? "未知合集";
+
+        // 3. 旋转列表
+        int startIndex = fullList.FindIndex(v => v.Bvid == targetBvid);
+        if (startIndex == -1) startIndex = 0; // 找不到就从第一个开始
+
+        var rotatedList = fullList.Skip(startIndex).Concat(fullList.Take(startIndex)).ToList();
+
+        // 4. 返回旋转后的列表和合集标题
+        return (rotatedList, collectionTitle);
+    }
     // 检查音频来源
     private Task AfterSongStart(object sender, PlayInfoEventArgs e)
     {
@@ -1498,20 +1531,10 @@ public class BilibiliPlugin : IBotPlugin
         if (string.IsNullOrWhiteSpace(bvid)) return "请提供 BV 号。";
         try
         {
-            string viewJson = await http.GetStringAsync($"https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
-            JObject viewData = JObject.Parse(viewJson)["data"] as JObject;
-            if (viewData?["ugc_season"] == null) return "该视频不属于任何合集。";
+            // 同样，直接调用新方法获取旋转后的列表和标题
+            var (rotatedList, collectionTitle) = await GetRotatedCollectionAsync(bvid);
 
-            var videoList = ParseSeasonToList(viewData);
-            var collectionTitle = viewData["ugc_season"]?["title"]?.ToString() ?? "未知合集";
-            if (videoList.Count == 0) return "无法从合集中解析出任何视频。";
-
-            // --- 新的核心逻辑 ---
-
-            // 旋转列表，确保目标bvid是第一个
-            int startIndex = videoList.FindIndex(v => v.Bvid == bvid);
-            if (startIndex == -1) startIndex = 0;
-            var rotatedList = videoList.Skip(startIndex).Concat(videoList.Take(startIndex)).ToList();
+            if (rotatedList.Count == 0) return "无法从合集中解析出任何视频。";
 
             var itemsToInsert = rotatedList.Select(video =>
             {
@@ -1602,28 +1625,23 @@ public class BilibiliPlugin : IBotPlugin
 
         try
         {
-            string viewApi = $"https://api.bilibili.com/x/web-interface/view?bvid={bvid}";
-            string viewJson = await http.GetStringAsync(viewApi);
-            JObject viewData = JObject.Parse(viewJson)["data"] as JObject;
+            // 直接调用新方法获取旋转后的列表
+            var (rotatedList, collectionTitle) = await GetRotatedCollectionAsync(bvid);
 
-            if (viewData?["ugc_season"] == null)
-                return "该视频不属于任何合集。";
-
-            var videoList = ParseSeasonToList(viewData);
-            var collectionTitle = viewData["ugc_season"]?["title"]?.ToString() ?? "未知合集";
-
-            if (videoList.Count == 0)
+            if (rotatedList.Count == 0)
                 return "无法从合集中解析出任何视频。";
 
-            // 核心改动：调用旋转添加，但 startPlaying 参数为 false
-            return await BatchAddRotatedAsync(invoker, videoList, bvid, collectionTitle, false);
+            string summaryMessage = $"已将合集《{collectionTitle}》中的 {rotatedList.Count} 首歌曲加入队列。";
+
+            // 直接调用最基础的批量添加方法
+            return await BatchAddAsync(invoker, rotatedList, summaryMessage);
         }
         catch (Exception ex)
         {
             return $"获取或添加合集失败: {ex.Message}";
         }
     }
-    
+
     [Command("b ls")]
     public async Task CommandListPlaylist(int page = 0)
     {
