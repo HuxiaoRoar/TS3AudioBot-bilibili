@@ -28,6 +28,51 @@ public enum PlayMode
 
 public class BilibiliPlugin : IBotPlugin
 {
+    //添加设置文件记录
+    public class BilibiliPluginConfig
+    {
+        // 默认开启自动改名
+        public bool AutoChangeBotName { get; set; } = true;
+    }
+    private static string configFile = "bilibili_config.json";
+    private BilibiliPluginConfig pluginConfig = new BilibiliPluginConfig();
+
+    //-----------------------------------------------------------------------------------------------------------------------------//
+    private void LoadConfig()
+    {
+        try
+        {
+            if (File.Exists(configFile))
+            {
+                string json = File.ReadAllText(configFile);
+                pluginConfig = Newtonsoft.Json.JsonConvert.DeserializeObject<BilibiliPluginConfig>(json) ?? new BilibiliPluginConfig();
+            }
+            else
+            {
+                // 如果文件不存在，则保存一份默认配置
+                SaveConfig();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"加载配置文件失败: {ex.Message}");
+            pluginConfig = new BilibiliPluginConfig();
+        }
+    }
+
+    private void SaveConfig()
+    {
+        try
+        {
+            string json = Newtonsoft.Json.JsonConvert.SerializeObject(pluginConfig, Newtonsoft.Json.Formatting.Indented);
+            File.WriteAllText(configFile, json);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"保存配置文件失败: {ex.Message}");
+        }
+    }
+
     private Ts3Client _ts3Client;
     private readonly PlayManager _playManager;
 	private static readonly HttpClient http = new HttpClient();
@@ -35,7 +80,6 @@ public class BilibiliPlugin : IBotPlugin
 
     // ---> 新增一个字段来存储机器人的默认名称 <---
     private string defaultBotName;
-
     private static BilibiliVideoInfo lastSearchedVideo;
     private static List<BilibiliVideoInfo> lastHistoryResult;
 
@@ -65,7 +109,8 @@ public class BilibiliPlugin : IBotPlugin
 			"User-Agent",
 			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
 		);
-		LoadCookie();
+        LoadConfig();
+        LoadCookie();
 	}
 
     public async void Initialize() {
@@ -430,6 +475,15 @@ public class BilibiliPlugin : IBotPlugin
         {
             string viewApi = $"https://api.bilibili.com/x/web-interface/view?bvid={bvid}";
             string viewJson = await http.GetStringAsync(viewApi);
+
+            //Console.WriteLine("========================================================\n");
+            //Console.WriteLine("\n[API 调试 - 步骤1] 获取视频信息 (BVID -> CID):");
+            //Console.WriteLine(viewApi);
+            //// 格式化输出 JSON 以便阅读
+            //Console.WriteLine(JToken.Parse(viewJson).ToString(Newtonsoft.Json.Formatting.Indented));
+            //Console.WriteLine("========================================================\n");
+
+
             JObject viewData = JObject.Parse(viewJson)["data"] as JObject;
 
             if (viewData == null)
@@ -503,6 +557,13 @@ public class BilibiliPlugin : IBotPlugin
 
     private async Task<string> SetBotNameAsync(string title)
     {
+
+        // ---> 新增：检查配置是否允许改名 <---
+        if (!pluginConfig.AutoChangeBotName)
+        {
+            return null; // 直接返回，不做修改
+        }
+
         if (string.IsNullOrWhiteSpace(title))
         {
             return "标题为空，无法设置机器人名称。";
@@ -539,24 +600,45 @@ public class BilibiliPlugin : IBotPlugin
 
         try
         {
-            // 1. 创建一个临时的、携带用户个人Cookie的HttpClient
-            var userClient = new HttpClient();
-            userClient.DefaultRequestHeaders.Add("Referer", "https://www.bilibili.com");
-            userClient.DefaultRequestHeaders.Add(
-                "User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/128.0.0.0"
-            );
+            // 1. 创建带有自动解压缩支持的 Handler
+            var handler = new HttpClientHandler
+            {
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.None
+            };
+
+            // 使用 Handler 创建临时的 HttpClient
+            var userClient = new HttpClient(handler);
+
+            // 尽可能还原真实浏览器的请求头（或 Postman 的默认请求头）
+            userClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0");
+            userClient.DefaultRequestHeaders.Add("Referer", "https://www.bilibili.com/");
+            userClient.DefaultRequestHeaders.Add("Origin", "https://www.bilibili.com");
+            userClient.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
+            userClient.DefaultRequestHeaders.Add("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
+            userClient.DefaultRequestHeaders.Add("Connection", "keep-alive");
             // 调用我们现有的 SetInvokerCookie 方法来设置当前用户的 Cookie
             SetInvokerCookie(invoker, userClient, track);
 
             // 2. 使用这个临时客户端请求播放链接API
             string playApi = $"https://api.bilibili.com/x/player/playurl?cid={partInfo.Cid}&bvid={videoInfo.Bvid}&fnval=16&fourk=1";
-            string playJson = await userClient.GetStringAsync(playApi);
+
+            //Console.WriteLine($"\n[API 调试 - 步骤2] 正在获取播放链接: {playApi}");
+
+            string playJson = "";
+            using (var response = await userClient.GetAsync(playApi))
+            {
+                playJson = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    // Console.WriteLine($"[严重错误] B站 API 拒绝了请求！状态码: {(int)response.StatusCode} {response.StatusCode}");
+                    // Console.WriteLine($"[拦截详情] B站返回内容: {playJson}");
+                    // return streamInfo; // 直接返回空流信息，防止向下解析 JSON 导致程序崩溃
+                }
+            }
+
             JObject playData = JObject.Parse(playJson);
-            // Console.WriteLine("-------------------------------------------------------------");
-            // Console.WriteLine(playApi);
-            // Console.WriteLine(playData.ToString(Newtonsoft.Json.Formatting.Indented));
-            // Console.WriteLine("-------------------------------------------------------------");
+            // Console.WriteLine($"[API 调试 - 步骤2] 成功获取链接 JSON 数据。{playJson}");
 
 
             // 3. 优先尝试获取 Hi-Res (flac) 音频            
@@ -1876,6 +1958,41 @@ public class BilibiliPlugin : IBotPlugin
     }
 
     // --- 新增代码块 结束 ---
+
+    [Command("b autoname")]
+    public async Task<string> CommandAutoName(string state = "")
+    {
+        if (string.IsNullOrWhiteSpace(state))
+        {
+            string currentStatus = pluginConfig.AutoChangeBotName ? "开启 (on)" : "关闭 (off)";
+            return $"当前自动改名状态: {currentStatus}\n用法: !b autoname [on|off]";
+        }
+
+        state = state.ToLower();
+        if (state == "on" || state == "true" || state == "1")
+        {
+            pluginConfig.AutoChangeBotName = true;
+            SaveConfig();
+            return "✅ 已开启: 点歌时机器人将自动修改名称。";
+        }
+        else if (state == "off" || state == "false" || state == "0")
+        {
+            pluginConfig.AutoChangeBotName = false;
+            SaveConfig();
+
+            // 可选：一旦关闭，立即把名字恢复成默认的机器人名字
+            await _ts3Client.ChangeName(defaultBotName);
+
+            return "❌ 已关闭: 点歌时机器人将保持原名不变。";
+        }
+        else
+        {
+            return "参数无效。请输入 on 开启，或输入 off 关闭。";
+        }
+    }
+
+
+
 
     #endregion
 

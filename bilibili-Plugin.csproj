@@ -13,7 +13,7 @@
 	</PropertyGroup>
 	
 	<PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
-		<AssemblyVersion>$(Version).3</AssemblyVersion>
+		<AssemblyVersion>$(Version).4</AssemblyVersion>
 		<Deterministic>true</Deterministic>
 	</PropertyGroup>
 	

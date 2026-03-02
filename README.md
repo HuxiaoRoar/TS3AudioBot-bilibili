@@ -2,7 +2,7 @@
 
 > 基于xxmod的 TS3AudioBot-BiliBiliPlugin 开发，重构并添加了新功能，例如批量添加视频合集、视频分P、队列管理等实用功能。
 
-[![Auto Release](https://github.com/xxmod/TS3AudioBot-BiliBiliPlugin/actions/workflows/main.yml/badge.svg)](https://github.com/xxmod/TS3AudioBot-BiliBiliPlugin/actions/workflows/main.yml)
+[![Auto Release](https://github.com/HuxiaoRoar/TS3AudioBot-bilibili/actions/workflows/dotnet-release.yml/badge.svg)](https://github.com/HuxiaoRoar/TS3AudioBot-bilibili/actions/workflows/dotnet-release.yml)
 [![Based on xxmod](https://img.shields.io/badge/Based%20on-xxmod-green)](https://github.com/xxmod/TS3AudioBot-BiliBiliPlugin)
 [![License](https://img.shields.io/badge/license-MPL2.0-blue.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-3.1-blue.svg)](https://dotnet.microsoft.com/download/dotnet/3.1)
@@ -27,7 +27,7 @@
 
 ### 方法一：docker快速安装（推荐）
 
-详见视频：等我更新
+[详见视频](https://www.bilibili.com/video/BV1sHySBtE31/)
 
 1. **安装 Docker**
 
@@ -39,9 +39,9 @@
 
 3. **下载插件和代理镜像**
 
-   - 下载 [BilibiliPlugin.dll]
+   - 下载 [BilibiliPlugin.dll](https://github.com/HuxiaoRoar/TS3AudioBot-bilibili/releases/)
 
-   - 下载 [Bilibili-Referer-Proxy-R](https://github.com/HuxiaoRoar/Bilibili-Referer-Proxy-R/releases/tag/v1.0.2)
+   - 下载 [Bilibili-Referer-Proxy-R](https://github.com/HuxiaoRoar/Bilibili-Referer-Proxy-R/releases/)
 
 4. **复制和安装**
 
@@ -79,7 +79,8 @@
          "cmd.b.go",
          "cmd.b.remove",
          "cmd.b.move",
-         "cmd.b.clear"
+         "cmd.b.clear",
+         "cmd.b.autoname",
       ```
 
    - 管理员权限配置部分：
@@ -154,8 +155,8 @@
 
 1. **下载插件和代理服务**
 
-   - 下载 [BilibiliPlugin.dll](https://github.com/HuxiaoRoar/TS3AudioBot-/blob/main/bin/Release/netcoreapp3.1/BilibiliPlugin.dll)
-   - 下载 [bilibili-referer-proxy](https://github.com/HuxiaoRoar/Bilibili-Referer-Proxy-R/releases/download/v1.0.2/Proxy.zip)
+   - 下载 [BilibiliPlugin.dll](https://github.com/HuxiaoRoar/TS3AudioBot-bilibili/releases/)
+   - 下载 [bilibili-referer-proxy](https://github.com/HuxiaoRoar/Bilibili-Referer-Proxy-R/releases/)
 2. **文件部署**
 
    - 将 `BilibiliPlugin.dll` 放置于 `TS3AudioBot/Plugins/` 目录下
@@ -171,7 +172,7 @@
 #### Cookie 登录（推荐）
 
 ```
-!b login SESSDATA=你的SESSDATA; bili_jct=你的bili_jct;
+!b login SESSDATA=你的SESSDATA; bili_jct=你的bili_jct; buvid3=你的buvid3;
 ```
 
 - **b站现在对多端使用进行限制，最多同时两个设备，播放会员权限内容。**
@@ -328,6 +329,21 @@ bv号后面加上`-a`
 !b mode 3     # 切换播放模式，1=顺序播放，2=列表循环，3=单曲循环
 ```
 
+#### 播放模式
+
+```
+!b mode 1     # 顺序播放
+!b mode 2     # 列表循环
+!b mode 3     # 单曲循环
+```
+
+####  昵称更换
+
+```
+!b autoname on   # 开启自动更换机器人昵称
+!b autoname off  # 关闭自动更换机器人昵称
+```
+
 ## 📋 完整命令列表
 
 | 命令         | 参数         | 功能描述                                     | 示例                                   |
@@ -357,6 +373,8 @@ bv号后面加上`-a`
 | `!b remove`  | 队列编号     | 移除播放队列中的指定编号                     | `!b remove 3`                           |
 | `!b move`    | 队列编号1 队列编号2 | 将队列中的指定编号3移动到编号1位置 | `!b move 3 1`                           |
 | `!b mode`   | 模式编号     | 切换播放模式，1=顺序播放，2=列表循环，3=单曲循环 | `!b mode 3`                             |
+| `!b autoname` | on/off       | 开启/关闭自动更换机器人昵称，默认开启                 | `!b autoname on`                        |
+
 
 ## 📣频道描述
 
@@ -388,29 +406,31 @@ bv号后面加上`-a`
 11.改变播放模式
 [1=顺序播放 2=列表循环 3=单曲循环]
 [COLOR=#fb7299]!b mode [模式编号或名称][/COLOR]
+12.自动更换机器人昵称
+[COLOR=#fb7299]!b autoname on[/COLOR] 或 [COLOR=#fb7299]!b autoname off[/COLOR]
 -------------------------------------------
-12.播放指定视频 (若为多P视频，会列出分P)
+13.播放指定视频 (若为多P视频，会列出分P)
 [COLOR=#00AEEC]!b v [BV号][/COLOR]
-13.播放指定分P
+14.播放指定分P
 [COLOR=#00AEEC]!b v [BV号-分P编号][/COLOR]
-14.播放视频的全部P
+15.播放视频的全部P
 [COLOR=#00AEEC]!b v [BV号-a][/COLOR]
-15.播放并添加整个合集 (从指定BV开始)
+16.播放并添加整个合集 (从指定BV开始)
 [COLOR=#00AEEC]!b vall [合集中的任一BV号][/COLOR]
-16.添加视频到队列
+17.添加视频到队列
 [COLOR=#00AEEC]!b add [BV号][/COLOR]
-17.添加指定分P到队列
+18.添加指定分P到队列
 [COLOR=#00AEEC]!b add [BV号-分P编号][/COLOR]
-18.添加视频的全部P到队列
+19.添加视频的全部P到队列
 [COLOR=#00AEEC]!b add [BV号-a][/COLOR]
-19.添加整个合集到队列 (从指定BV开始)
+20.添加整个合集到队列 (从指定BV开始)
 [COLOR=#00AEEC]!b addall [合集中的任一BV号][/COLOR]
 -------------------------------------------
-20.查看最近观看历史
+21.查看最近观看历史
 [COLOR=#00AEEC]!b history[/COLOR]
-21.播放历史记录中的视频
+22.播放历史记录中的视频
 [COLOR=#00AEEC]!b h [历史编号][/COLOR]
-22.添加历史视频到队列
+23.添加历史视频到队列
 [COLOR=#00AEEC]!b addh [历史编号][/COLOR]
 ```
 
@@ -427,7 +447,7 @@ bv号后面加上`-a`
 ### Tips
 
 - 点歌时，可以直接复制bv号，例如 `BV1UT42167xb`，粘贴进对话框，在最前面敲`!`，并在b、v后面各输入一个空格，最后变成`!b v 1UT42167xb`，直接发送即可点歌。
-- 还有更简单的，可以用油猴插件，直接从网页点歌，待补充。
+- 还有更简单的，可以用油猴插件，直接从网页点歌，[B站音频一键推送](https://greasyfork.org/zh-CN/scripts/553983-b%E7%AB%99%E9%9F%B3%E9%A2%91%E4%B8%80%E9%94%AE%E6%8E%A8%E9%80%81-ts3audiobot)。安装后视频页面会出现一个点歌按钮，点击即可点歌。
 - 如果出现HiRes播放失败，请稍等一会再试试，部分特殊cdn可能会导致这个情况。
 
 ### 获取 Cookie 方法
@@ -441,12 +461,14 @@ bv号后面加上`-a`
 
    - `SESSDATA`：形如 `xxx%2Cxxx%2Cxxx*xx`
    - `bili_jct`：形如 `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+   - `buvid3`：形如 `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
 ![2](assets/2.png)
 
 6. **组合 Cookie**：
 
    ```
-   !b login SESSDATA=你的SESSDATA值; bili_jct=你的bili_jct值;
+   !b login SESSDATA=你的SESSDATA值; bili_jct=你的bili_jct值; buvid3=你的buvid3;
+   注意，分号后与有空格分隔，不要删除空格。
    ```
 
 7. **注意事项**
